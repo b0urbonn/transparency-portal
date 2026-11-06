@@ -20,7 +20,6 @@ export default defineConfig({
   kind: 'province',
   name: 'Province of Marinduque',
   shortName: 'Marinduque',
-  logo: '/bettermarinduque-mark.svg',
   operator: { name: 'BetterMarinduque', url: 'https://bettermarinduque.org' },
   // Canonical URL of this deployment, for link previews. When the
   // bettermarinduque.org domain is registered, move it to

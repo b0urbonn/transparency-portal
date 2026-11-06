@@ -21,8 +21,10 @@ export default defineConfig({
   name: 'Province of Marinduque',
   shortName: 'Marinduque',
   operator: { name: 'BetterMarinduque', url: 'https://bettermarinduque.org' },
-  // Canonical URL of this deployment, for link previews.
-  siteUrl: 'https://transparency.bettermarinduque.org',
+  // Canonical URL of this deployment, for link previews. When the
+  // bettermarinduque.org domain is registered, move it to
+  // budget.bettermarinduque.org, the Better LGU convention.
+  siteUrl: 'https://budget-bettermarinduque.vercel.app',
   scope: {
     offices: ['Marinduque District Engineering Office'],
     places: [

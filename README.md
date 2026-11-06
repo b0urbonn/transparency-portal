@@ -56,6 +56,9 @@ scope: {
   places: [{ label: 'Bohol', region: 'VII' }],
   // District cards to show (representative, offices, tiers).
   districts: ['leg:bohol:1st'],
+  // Optional: towns within the LGU. A line counts under a town when its title
+  // names it, giving the projects list a By-municipality view.
+  municipalities: ['Carmen', 'Dagohoy', 'Pilar'],
   // Lines removed by hand. Each needs a reason; the About page publishes them.
   exclude: [],
 }

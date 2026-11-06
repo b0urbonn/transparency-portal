@@ -13,6 +13,8 @@ import { summarise, type ScopedProject, type ScopeResult, type Summary } from '.
 import { useTitle } from '../lib/use-title';
 
 const PAGE = 100;
+/** The `mun` filter value for rows whose title names no configured municipality. */
+const NO_TOWN = '_none';
 
 type Sort = 'house' | 'nep' | 'change' | 'title';
 const SORTS: Record<Sort, { label: string; cmp: (a: ScopedProject, b: ScopedProject) => number }> = {
@@ -75,8 +77,11 @@ function Projects({ scope, datasets }: { scope: ScopeResult; datasets: DatasetIn
   const status = (params.get('status') ?? '') as BridgeGroup | '';
   const why = params.get('why') ?? '';
   const office = params.get('office') ?? '';
+  const mun = params.get('mun') ?? '';
   const sort = (params.get('sort') as Sort) in SORTS ? (params.get('sort') as Sort) : 'house';
   const [shown, setShown] = useState(PAGE);
+
+  const munNames = useMemo(() => config.scope.municipalities ?? [], [config]);
 
   const setParam = (key: string, value: string) => {
     const next = new URLSearchParams(params);
@@ -99,6 +104,28 @@ function Projects({ scope, datasets }: { scope: ScopeResult; datasets: DatasetIn
     return [...seen.entries()];
   }, [all]);
 
+  // Per municipality: the rows whose title names it (a row can name two).
+  const munCells = useMemo(() => {
+    const cells = new Map<string, { rows: number; house_php: number }>();
+    for (const m of munNames) cells.set(m, { rows: 0, house_php: 0 });
+    const untagged = { rows: 0, house_php: 0 };
+    for (const p of all) {
+      if (!p.towns.length) {
+        untagged.rows++;
+        untagged.house_php += p.house_php ?? 0;
+        continue;
+      }
+      for (const t of p.towns) {
+        const c = cells.get(t);
+        if (c) {
+          c.rows++;
+          c.house_php += p.house_php ?? 0;
+        }
+      }
+    }
+    return { cells, untagged };
+  }, [all, munNames]);
+
   const filtered = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     const rows = all.filter((p) => {
@@ -106,6 +133,7 @@ function Projects({ scope, datasets }: { scope: ScopeResult; datasets: DatasetIn
       if (status && p.bridge_group !== status) return false;
       if (why && !p.reasons.some((r) => `${r.kind}:${r.label}` === why)) return false;
       if (office && p.office !== office) return false;
+      if (mun === NO_TOWN ? p.towns.length > 0 : mun && !p.towns.includes(mun)) return false;
       if (words.length) {
         const hay = [p.title, p.program, p.pap, p.office, p.region].join(' ').toLowerCase();
         if (!words.every((w) => hay.includes(w))) return false;
@@ -113,7 +141,7 @@ function Projects({ scope, datasets }: { scope: ScopeResult; datasets: DatasetIn
       return true;
     });
     return rows.sort((a, b) => SORTS[sort].cmp(a, b) || a.title.localeCompare(b.title));
-  }, [all, q, program, status, why, office, sort]);
+  }, [all, q, program, status, why, office, mun, sort]);
   const filteredSummary = useMemo(() => summarise(filtered), [filtered]);
   const narrowed = filtered.length !== all.length;
 
@@ -129,6 +157,49 @@ function Projects({ scope, datasets }: { scope: ScopeResult; datasets: DatasetIn
       <Stats summary={summary} programName={programName} />
 
       <OfficesSection />
+
+      {munNames.length > 0 && (
+        <section className="section" aria-labelledby="munis-h">
+          <h2 id="munis-h" className="section-h">By municipality</h2>
+          <div className="groups groups-munis" role="group" aria-label="Filter by municipality">
+            {munNames.map((m) => {
+              const cell = munCells.cells.get(m) ?? { rows: 0, house_php: 0 };
+              const active = mun === m;
+              return (
+                <button
+                  key={m}
+                  type="button"
+                  className={`group-tile${active ? ' active' : ''}`}
+                  disabled={!cell.rows}
+                  aria-pressed={active}
+                  onClick={() => setParam('mun', active ? '' : m)}
+                >
+                  <span className="group-label">{m}</span>
+                  <span className="group-count num">{count(cell.rows)}</span>
+                  <span className="group-php num">{cell.rows ? php(cell.house_php) : '—'}</span>
+                </button>
+              );
+            })}
+            {munCells.untagged.rows > 0 && (
+              <button
+                type="button"
+                className={`group-tile${mun === NO_TOWN ? ' active' : ''}`}
+                aria-pressed={mun === NO_TOWN}
+                title="Projects whose title names none of the towns above"
+                onClick={() => setParam('mun', mun === NO_TOWN ? '' : NO_TOWN)}
+              >
+                <span className="group-label">No town named</span>
+                <span className="group-count num">{count(munCells.untagged.rows)}</span>
+                <span className="group-php num">{php(munCells.untagged.house_php)}</span>
+              </button>
+            )}
+          </div>
+          <p className="fine">
+            The documents record no municipality; a project is counted under a town when its title names it. A line naming
+            two towns counts under each, and a project whose title names no town is under none.
+          </p>
+        </section>
+      )}
 
       <section className="section" aria-labelledby="groups-h">
         <h2 id="groups-h" className="section-h">What the House bill did to them</h2>
@@ -190,6 +261,18 @@ function Projects({ scope, datasets }: { scope: ScopeResult; datasets: DatasetIn
               ))}
             </select>
           </label>
+          {munNames.length > 0 && (
+            <label className="field">
+              <span className="label">Municipality</span>
+              <select value={mun} onChange={(e) => setParam('mun', e.target.value)}>
+                <option value="">Everywhere</option>
+                {munNames.map((m) => (
+                  <option key={m} value={m}>{m} ({count(munCells.cells.get(m)?.rows ?? 0)})</option>
+                ))}
+                {munCells.untagged.rows > 0 && <option value={NO_TOWN}>No town named ({count(munCells.untagged.rows)})</option>}
+              </select>
+            </label>
+          )}
           {offices.length > 1 && (
             <label className="field">
               <span className="label">DPWH office</span>
@@ -335,6 +418,13 @@ function ProjectTable({ rows, programName }: { rows: ScopedProject[]; programNam
               {p.office && <span>{shortOffice(p.office)}</span>}
               {p.region && <span>{p.region}</span>}
               <ReasonTags reasons={p.reasons} />
+              {p.towns
+                .filter((t) => !p.reasons.some((r) => r.kind === 'place' && r.label === t))
+                .map((t) => (
+                  <span key={t} className="tag tag-place" title={`The title names ${t}`}>
+                    names {t}
+                  </span>
+                ))}
             </span>
           </span>
           <span role="cell" className="td-status"><StatusChip group={p.bridge_group} label={p.status_label} held={p.held} /></span>

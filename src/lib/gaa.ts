@@ -14,7 +14,8 @@
  *   alone does not mean the year's GAA funds it.
  * - A family is one name; a renamed project is a different row.
  * - Names are matched, not places surveyed, and the GAA carries no region, so
- *   a place's `region` cannot narrow these; `q` has to.
+ *   a place's `region` cannot narrow these; `q` has to. A place too common
+ *   for that can opt out with `gaaSearch: false`.
  * - DPWH money by office per year is not here: it comes with each office from
  *   the district pages (see OfficeHistory on the page).
  */
@@ -76,7 +77,9 @@ export function loadGaa(client: Client, config: PortalConfig, onProgress?: (done
 }
 
 export async function resolveGaa(client: Client, config: PortalConfig, onProgress?: (done: number, total: number) => void): Promise<GaaResult> {
-  const places = config.scope.places ?? [];
+  // `gaaSearch: false` marks a name too common for the GAA, which no region
+  // can narrow; its lines still arrive through the other places' searches.
+  const places = (config.scope.places ?? []).filter((p) => p.gaaSearch !== false);
   const departments = (await client.gaaDepartments()).data;
   const jobs = places.flatMap((p) => departments.map((d) => ({ place: p.label, q: p.q ?? p.label, department: d })));
 

@@ -189,6 +189,8 @@
 .group-tile .label { font-size: 9.5px; }
 .group-count { font-family: var(--font-hero); font-weight: 700; font-size: 26px; margin-top: 6px; }
 .group-php { font-family: var(--font-mono); font-size: 12px; color: var(--ink-3); }
+/* Municipality tiles: however many the config names, they size to fit. */
+.groups-munis { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 
 /* ---------- List toolbar ---------- */
 .list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }

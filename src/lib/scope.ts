@@ -14,6 +14,7 @@ import { DATASET_KEYS, type DatasetKey, type Exclusion, type PortalConfig } from
 import type { Client, Params } from '../api/client';
 import type { BridgeGroup, Disclaimer, Meta, OfficeLens, ProjectRow } from '../api/types';
 import { BRIDGE_GROUPS } from '../api/types';
+import { municipalitiesOf } from './municipalities';
 
 export type Reason =
   | { kind: 'office'; label: string }
@@ -23,6 +24,8 @@ export interface ScopedProject extends ProjectRow {
   /** `<dataset>:<id>`, the key exclusions and reports use. */
   key: string;
   reasons: Reason[];
+  /** The scope's municipalities the title names (matched, not surveyed). */
+  towns: string[];
 }
 
 export interface QueryReport {
@@ -54,7 +57,7 @@ export interface ScopeResult {
 export const projectKey = (dataset: string, id: string) => `${dataset}:${id}`;
 
 export async function resolveScope(client: Client, config: PortalConfig): Promise<ScopeResult> {
-  const { offices = [], places = [] } = config.scope;
+  const { offices = [], places = [], municipalities = [] } = config.scope;
   const exclude = (config.scope.exclude ?? []).filter((e) => !e.key.startsWith('gaa:'));
 
   type Job = { kind: Reason['kind']; label: string; dataset: DatasetKey; params: Params; region?: string };
@@ -102,7 +105,7 @@ export async function resolveScope(client: Client, config: PortalConfig): Promis
       const key = projectKey(row.dataset, row.id);
       const reason: Reason = { kind: job.kind, label: job.label };
       const seen = byKey.get(key);
-      if (!seen) byKey.set(key, { ...row, key, reasons: [reason] });
+      if (!seen) byKey.set(key, { ...row, key, reasons: [reason], towns: municipalitiesOf(row.title, municipalities) });
       else if (!seen.reasons.some((r) => r.kind === reason.kind && r.label === reason.label)) seen.reasons.push(reason);
     }
   }

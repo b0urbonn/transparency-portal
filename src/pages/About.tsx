@@ -40,6 +40,7 @@ export default function About() {
 
 function AboutView({ scope, overview }: { scope: ScopeResult; overview: Overview }) {
   const { config, districts } = usePortal();
+  const municipalities = config.scope.municipalities ?? [];
   const label = (k: string) => overview.datasets.find((d) => d.key === k)?.short ?? k.toUpperCase();
   const disclaimers = new Map<string, Disclaimer>();
   for (const d of scope.disclaimers) disclaimers.set(d.id, d);
@@ -84,6 +85,8 @@ function AboutView({ scope, overview }: { scope: ScopeResult; overview: Overview
         <p className="fine">
           A line found by more than one question is shown once, with every reason. Searching by name finds titles that spell
           the place out; a project whose title does not name it is found only through its DPWH office.
+          {municipalities.length > 0 &&
+            ` The By-municipality view reads the town from the title too: a line is counted under ${municipalities.join(', ')} when its title names it, and under none when it names no town.`}
         </p>
       </section>
 

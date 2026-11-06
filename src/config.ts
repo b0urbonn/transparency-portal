@@ -34,6 +34,13 @@ export interface PlaceQuery {
   region?: string;
   /** Programs to search. Defaults to all four. */
   datasets?: DatasetKey[];
+  /**
+   * Set false to keep this place out of the 2020–2026 (GAA) searches. The GAA
+   * has no region, so `region` cannot narrow those searches; a name shared
+   * with places elsewhere (a "Santa Cruz" or "Buenavista") would pull their
+   * programs in. Defaults to true.
+   */
+  gaaSearch?: boolean;
 }
 
 /** A line the maintainer removed from the portal. Every exclusion is published on the About page. */
@@ -79,6 +86,14 @@ export interface PortalConfig {
     places?: PlaceQuery[];
     /** Legislative districts to show cards for: ids such as "leg:bohol:1st". */
     districts?: string[];
+    /**
+     * Towns within the LGU ("Boac", "Santa Cruz"). A line is counted under a
+     * municipality when its title names it: name-matched, not surveyed, so a
+     * project whose title names no town is under none. Gives the projects
+     * list a By-municipality view; each town still needs a `places` entry if
+     * its name alone should also bring lines into the portal.
+     */
+    municipalities?: string[];
     /** Lines removed by hand. Published, with reasons, on the About page. */
     exclude?: Exclusion[];
   };
@@ -105,7 +120,7 @@ export function configProblems(config: PortalConfig): string[] {
   }
   if (!config.name.trim()) problems.push('name is empty.');
   if (!config.operator?.name?.trim()) problems.push('operator.name is empty: say who runs this portal.');
-  const { offices = [], places = [], districts = [], exclude = [] } = config.scope;
+  const { offices = [], places = [], districts = [], municipalities = [], exclude = [] } = config.scope;
   if (!offices.length && !places.length) {
     problems.push('scope needs at least one office or place, or the portal has no projects.');
   }
@@ -117,6 +132,9 @@ export function configProblems(config: PortalConfig): string[] {
   }
   for (const d of districts) {
     if (!d.startsWith('leg:')) problems.push(`district "${d}" should be an id such as "leg:bohol:1st".`);
+  }
+  for (const m of municipalities) {
+    if (!m.trim()) problems.push('a municipality has an empty name.');
   }
   for (const e of exclude) {
     if (!/^(dpwh|fmr|hfep|nia|gaa):.+/.test(e.key)) problems.push(`exclusion "${e.key}" should be "<program>:<id>" (2027) or "gaa:<family key>" (2020–2026).`);

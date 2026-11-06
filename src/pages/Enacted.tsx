@@ -15,6 +15,7 @@ import { PageHead } from '../components/Chrome';
 import { downloadText } from '../lib/csv';
 import { count, php, phpFull, plural } from '../lib/format';
 import { departmentShort, gaaCsv, gaaYearTotals, hasYear, loadGaa, type GaaResult, type GaaRow } from '../lib/gaa';
+import { municipalitiesOf } from '../lib/municipalities';
 import { usePortal, type Async } from '../lib/portal-context';
 import { useTitle } from '../lib/use-title';
 
@@ -26,7 +27,8 @@ export default function Enacted() {
   const { config, client, districts } = usePortal();
   const name = shortNameOf(config);
   useTitle(`Enacted budgets ${FIRST}–${LAST} · ${name}`);
-  const places = config.scope.places ?? [];
+  // The names actually searched in the GAA: `gaaSearch: false` places are not.
+  const places = (config.scope.places ?? []).filter((p) => p.gaaSearch !== false);
 
   const [progress, setProgress] = useState<{ done: number; total: number } | null>(null);
   const [state, setState] = useState<Async<GaaResult>>({ status: 'loading' });
@@ -84,7 +86,7 @@ export default function Enacted() {
           <button type="button" className="button" onClick={() => { setState({ status: 'loading' }); setAttempt((n) => n + 1); }}>Try again</button>
         </div>
       ) : (
-        <Programs result={state.value} placeList={placeList} />
+        <Programs result={state.value} placeList={placeList} municipalities={config.scope.municipalities ?? []} />
       )}
 
       <section className="section" aria-labelledby="gaa-notes-h">
@@ -186,7 +188,9 @@ function OfficeHistory({ office }: { office: DistrictOffice }) {
 // Programs and projects that name the place
 // ---------------------------------------------------------------------------
 
-function Programs({ result, placeList }: { result: GaaResult; placeList: string }) {
+const NO_TOWN = '_none';
+
+function Programs({ result, placeList, municipalities }: { result: GaaResult; placeList: string; municipalities: string[] }) {
   const { config } = usePortal();
   const all = result.rows;
   const totals = useMemo(() => gaaYearTotals(all), [all]);
@@ -195,6 +199,7 @@ function Programs({ result, placeList }: { result: GaaResult; placeList: string 
   const [params, setParams] = useSearchParams();
   const q = params.get('q') ?? '';
   const dept = params.get('dept') ?? '';
+  const mun = params.get('mun') ?? '';
   const yearParam = Number(params.get('year'));
   const year = (GAA_YEARS as readonly number[]).includes(yearParam) ? yearParam : null;
   const [shown, setShown] = useState(PAGE);
@@ -216,12 +221,28 @@ function Programs({ result, placeList }: { result: GaaResult; placeList: string 
     return [...n.entries()].sort((a, b) => b[1].rows - a[1].rows);
   }, [all]);
 
+  // Per municipality: the programs whose name mentions the town.
+  const munCounts = useMemo(() => {
+    const n = new Map<string, number>(municipalities.map((m) => [m, 0]));
+    let untagged = 0;
+    for (const r of all) {
+      const towns = municipalitiesOf(r.name, municipalities);
+      if (!towns.length) untagged++;
+      for (const t of towns) n.set(t, (n.get(t) ?? 0) + 1);
+    }
+    return { n, untagged };
+  }, [all, municipalities]);
+
   const filtered = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean);
     const y = year ? String(year) : null;
     const rows = all.filter((r) => {
       if (dept && r.department_id !== dept) return false;
       if (y && !hasYear(r, y)) return false;
+      if (mun) {
+        const towns = municipalitiesOf(r.name, municipalities);
+        if (mun === NO_TOWN ? towns.length > 0 : !towns.includes(mun)) return false;
+      }
       if (words.length) {
         const hay = `${r.name} ${r.department}`.toLowerCase();
         if (!words.every((w) => hay.includes(w))) return false;
@@ -229,7 +250,7 @@ function Programs({ result, placeList }: { result: GaaResult; placeList: string 
       return true;
     });
     return y ? [...rows].sort((a, b) => (b.years[y]?.amount ?? 0) - (a.years[y]?.amount ?? 0)) : rows;
-  }, [all, q, dept, year]);
+  }, [all, q, dept, year, mun, municipalities]);
   const narrowed = filtered.length !== all.length;
 
   return (
@@ -276,6 +297,18 @@ function Programs({ result, placeList }: { result: GaaResult; placeList: string 
               {departments.map(([id, d]) => <option key={id} value={id}>{d.label} ({count(d.rows)})</option>)}
             </select>
           </label>
+          {municipalities.length > 0 && (
+            <label className="field">
+              <span className="label">Municipality</span>
+              <select value={mun} onChange={(e) => setParam('mun', e.target.value)}>
+                <option value="">Everywhere</option>
+                {municipalities.map((m) => (
+                  <option key={m} value={m}>{m} ({count(munCounts.n.get(m) ?? 0)})</option>
+                ))}
+                {munCounts.untagged > 0 && <option value={NO_TOWN}>No town named ({count(munCounts.untagged)})</option>}
+              </select>
+            </label>
+          )}
           <label className="field">
             <span className="label">Year</span>
             <select value={year ?? ''} onChange={(e) => setParam('year', e.target.value)}>

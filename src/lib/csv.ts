@@ -11,6 +11,7 @@ const COLUMNS: [string, (p: ScopedProject) => string | number | null][] = [
   ['program_line', (p) => p.program],
   ['sub_line', (p) => p.pap],
   ['dpwh_office', (p) => p.office],
+  ['municipalities', (p) => p.towns.join('; ')],
   ['region', (p) => p.region],
   ['status', (p) => p.status_label],
   ['group', (p) => p.bridge_group],

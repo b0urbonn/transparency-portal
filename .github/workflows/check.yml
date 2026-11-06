@@ -1,0 +1,22 @@
+# Reconciles every API query in portal.config.ts against the live
+# BetterGov.ph Budget API. Runs weekly and on every push, so a change in
+# the API or the source documents shows up before citizens see wrong
+# numbers (BUDGET_GUIDE.md: "run npm run check in CI").
+name: Check against the live API
+
+on:
+  push:
+  schedule:
+    - cron: '0 0 * * 1' # Mondays 00:00 UTC
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run check
